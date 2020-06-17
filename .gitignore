@@ -13,3 +13,6 @@ antx.properties
 *.iml
 htdocs
 package-info.java
+.DS_Store
+*.tar.gz
+docker/data/

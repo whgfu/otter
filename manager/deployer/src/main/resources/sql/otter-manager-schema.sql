@@ -2,6 +2,8 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `otter` /*!40100 DEFAULT CHARACTER SET 
 
 USE `otter`;
 
+SET sql_mode='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+
 CREATE TABLE `ALARM_RULE` (
   `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `MONITOR_NAME` varchar(1024) DEFAULT NULL,
@@ -110,7 +112,7 @@ CREATE TABLE `DATA_MEDIA_SOURCE` (
 
 CREATE TABLE `DELAY_STAT` (
   `ID` bigint(20) NOT NULL AUTO_INCREMENT,
-  `DELAY_TIME` int(21) NOT NULL,
+  `DELAY_TIME` bigint(20) NOT NULL,
   `DELAY_NUMBER` bigint(20) NOT NULL,
   `PIPELINE_ID` bigint(20) NOT NULL,
   `GMT_CREATE` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -131,7 +133,6 @@ CREATE TABLE `LOG_RECORD` (
   `GMT_CREATE` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `GMT_MODIFIED` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`ID`),
-  KEY `pipeline_id_record` (`PIPELINE_ID`),
   KEY `logRecord_pipelineId` (`PIPELINE_ID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 
@@ -253,6 +254,46 @@ CREATE TABLE  `DATA_MATRIX` (
   PRIMARY KEY (`ID`),
   KEY `GROUPKEY` (`GROUP_KEY`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `meta_history` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `gmt_create` datetime NOT NULL COMMENT '创建时间',
+  `gmt_modified` datetime NOT NULL COMMENT '修改时间',
+  `destination` varchar(128) DEFAULT NULL COMMENT '通道名称',
+  `binlog_file` varchar(64) DEFAULT NULL COMMENT 'binlog文件名',
+  `binlog_offest` bigint(20) DEFAULT NULL COMMENT 'binlog偏移量',
+  `binlog_master_id` varchar(64) DEFAULT NULL COMMENT 'binlog节点id',
+  `binlog_timestamp` bigint(20) DEFAULT NULL COMMENT 'binlog应用的时间戳',
+  `use_schema` varchar(1024) DEFAULT NULL COMMENT '执行sql时对应的schema',
+  `sql_schema` varchar(1024) DEFAULT NULL COMMENT '对应的schema',
+  `sql_table` varchar(1024) DEFAULT NULL COMMENT '对应的table',
+  `sql_text` longtext DEFAULT NULL COMMENT '执行的sql',
+  `sql_type` varchar(256) DEFAULT NULL COMMENT 'sql类型',
+  `extra` text DEFAULT NULL COMMENT '额外的扩展信息',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY binlog_file_offest(`destination`,`binlog_master_id`,`binlog_file`,`binlog_offest`),
+  KEY `destination` (`destination`),
+  KEY `destination_timestamp` (`destination`,`binlog_timestamp`),
+  KEY `gmt_modified` (`gmt_modified`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='表结构变化明细表';
+
+CREATE TABLE IF NOT EXISTS `meta_snapshot` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `gmt_create` datetime NOT NULL COMMENT '创建时间',
+  `gmt_modified` datetime NOT NULL COMMENT '修改时间',
+  `destination` varchar(128) DEFAULT NULL COMMENT '通道名称',
+  `binlog_file` varchar(64) DEFAULT NULL COMMENT 'binlog文件名',
+  `binlog_offest` bigint(20) DEFAULT NULL COMMENT 'binlog偏移量',
+  `binlog_master_id` varchar(64) DEFAULT NULL COMMENT 'binlog节点id',
+  `binlog_timestamp` bigint(20) DEFAULT NULL COMMENT 'binlog应用的时间戳',
+  `data` longtext DEFAULT NULL COMMENT '表结构数据',
+  `extra` text DEFAULT NULL COMMENT '额外的扩展信息',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY binlog_file_offest(`destination`,`binlog_master_id`,`binlog_file`,`binlog_offest`),
+  KEY `destination` (`destination`),
+  KEY `destination_timestamp` (`destination`,`binlog_timestamp`),
+  KEY `gmt_modified` (`gmt_modified`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='表结构记录表快照表';
 
 
 insert into USER(ID,USERNAME,PASSWORD,AUTHORIZETYPE,DEPARTMENT,REALNAME,GMT_CREATE,GMT_MODIFIED) values(null,'admin','801fc357a5a74743894a','ADMIN','admin','admin',now(),now());

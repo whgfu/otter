@@ -16,10 +16,6 @@
 
 package com.alibaba.otter.node.etl.load.loader.db.interceptor.sql;
 
-import java.util.List;
-
-import org.springframework.util.CollectionUtils;
-
 import com.alibaba.otter.node.etl.common.db.dialect.DbDialect;
 import com.alibaba.otter.node.etl.common.db.dialect.DbDialectFactory;
 import com.alibaba.otter.node.etl.common.db.dialect.SqlTemplate;
@@ -30,6 +26,9 @@ import com.alibaba.otter.shared.common.model.config.data.db.DbMediaSource;
 import com.alibaba.otter.shared.etl.model.EventColumn;
 import com.alibaba.otter.shared.etl.model.EventData;
 import com.alibaba.otter.shared.etl.model.EventType;
+import org.springframework.util.CollectionUtils;
+
+import java.util.List;
 
 /**
  * 计算下最新的sql语句
@@ -50,10 +49,22 @@ public class SqlBuilderLoadInterceptor extends AbstractLoadInterceptor<DbLoadCon
         String sql = null;
 
         String schemaName = (currentData.isWithoutSchema() ? null : currentData.getSchemaName());
+
+        /**
+         * 针对DRDS数据库
+         */
+        String shardColumns = null;
+        if(dbDialect.isDRDS()){
+            // 获取拆分键
+            shardColumns = dbDialect.getShardColumns(schemaName, currentData.getTableName());
+
+        }
+
         // 注意insert/update语句对应的字段数序都是将主键排在后面
         if (type.isInsert()) {
-            if (CollectionUtils.isEmpty(currentData.getColumns()) && sqlTemplate instanceof OracleSqlTemplate) { // 如果表为全主键，直接进行insert
-                                                                                                                 // sql
+            if (CollectionUtils.isEmpty(currentData.getColumns())
+                && (dbDialect.isDRDS() || sqlTemplate instanceof OracleSqlTemplate)) { // 如果表为全主键，直接进行insert
+                // sql
                 sql = sqlTemplate.getInsertSql(schemaName,
                     currentData.getTableName(),
                     buildColumnNames(currentData.getKeys()),
@@ -63,7 +74,9 @@ public class SqlBuilderLoadInterceptor extends AbstractLoadInterceptor<DbLoadCon
                     currentData.getTableName(),
                     buildColumnNames(currentData.getKeys()),
                     buildColumnNames(currentData.getColumns()),
-                    new String[] {});
+                    new String[] {},
+                    !dbDialect.isDRDS(),
+                    shardColumns);
             }
         } else if (type.isUpdate()) {
             // String[] keyColumns = buildColumnNames(currentData.getKeys());
@@ -86,7 +99,12 @@ public class SqlBuilderLoadInterceptor extends AbstractLoadInterceptor<DbLoadCon
                 // 需要考虑主键变更的场景
                 // 构造sql如下：update table xxx set pk = newPK where pk = oldPk
                 keyColumns = buildColumnNames(currentData.getOldKeys());
-                otherColumns = buildColumnNames(currentData.getUpdatedColumns(), currentData.getKeys());
+                // 这里需要精确获取变更的主键,因为目标为DRDS时主键会包含拆分键,正常的原主键变更只更新对应的单主键列即可
+                if (dbDialect.isDRDS()) {
+                    otherColumns = buildColumnNames(currentData.getUpdatedColumns(), currentData.getUpdatedKeys());
+                } else {
+                    otherColumns = buildColumnNames(currentData.getUpdatedColumns(), currentData.getKeys());
+                }
             } else {
                 keyColumns = buildColumnNames(currentData.getKeys());
                 otherColumns = buildColumnNames(currentData.getUpdatedColumns());
@@ -97,9 +115,11 @@ public class SqlBuilderLoadInterceptor extends AbstractLoadInterceptor<DbLoadCon
                     currentData.getTableName(),
                     keyColumns,
                     otherColumns,
-                    new String[] {});
+                    new String[] {},
+                    !dbDialect.isDRDS(),
+                    shardColumns);
             } else {// 否则进行update sql
-                sql = sqlTemplate.getUpdateSql(schemaName, currentData.getTableName(), keyColumns, otherColumns);
+                sql = sqlTemplate.getUpdateSql(schemaName, currentData.getTableName(), keyColumns, otherColumns, !dbDialect.isDRDS(), shardColumns);
             }
         } else if (type.isDelete()) {
             sql = sqlTemplate.getDeleteSql(schemaName,
